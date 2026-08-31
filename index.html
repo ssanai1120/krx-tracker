@@ -44,28 +44,40 @@ button,a.btn{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(
   background:var(--surface);color:var(--ink);padding:7px 14px;font-weight:600;
   text-decoration:none;display:inline-block;}
 button:hover,a.btn:hover{border-color:var(--accent);}
-button:focus-visible,a.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+button:focus-visible,a.btn:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
 button:disabled{opacity:.45;cursor:default;}
+select{font:inherit;border:1px solid var(--line);border-radius:7px;padding:7px 10px;
+  background:var(--surface);color:var(--ink);font-weight:600;cursor:pointer;}
 .dirty-note{font-size:12px;color:var(--up);font-weight:600;}
-.tblwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);
+.tblwrap{overflow:auto;background:var(--surface);border:1px solid var(--line);
   border-radius:10px;box-shadow:var(--shadow);}
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;
   font-variant-numeric:tabular-nums;}
 th,td{padding:6px 10px;white-space:nowrap;border-bottom:1px solid var(--line-soft);text-align:right;}
 th{position:sticky;top:0;background:var(--surface);z-index:3;font-size:11px;color:var(--muted);
   font-weight:600;letter-spacing:.03em;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;}
-th.name,td.name{position:sticky;left:0;background:var(--surface);z-index:2;text-align:left;
+th.chk,td.chk{position:sticky;left:0;background:var(--surface);z-index:2;width:34px;
+  text-align:center;padding:6px 8px;cursor:default;}
+th.chk{z-index:4;}
+th.name,td.name{position:sticky;left:34px;background:var(--surface);z-index:2;text-align:left;
   font-weight:600;border-right:1px solid var(--line);max-width:210px;overflow:hidden;text-overflow:ellipsis;}
 th.name{z-index:4;}
-tbody tr:hover td{background:var(--line-soft);}
+input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+/* 행 하이라이트: 배경 대신 아래줄 강조 (히트맵 색이 변하지 않음) */
+tbody tr:hover td{box-shadow:inset 0 -2px 0 var(--accent);}
 td.up{color:var(--up);} td.down{color:var(--down);}
 td.pct{background:color-mix(in srgb, var(--hcol,transparent) calc(var(--i,0)*1%), transparent);}
+td.pct.ex{font-weight:700;}
 td.dim{color:var(--muted);}
-tfoot td{font-weight:700;border-top:1px solid var(--line);background:var(--surface);}
-tfoot td.name{border-right:1px solid var(--line);}
-td input{font:inherit;width:90px;text-align:right;border:1px solid var(--line);border-radius:5px;
-  padding:3px 6px;background:var(--bg);color:var(--ink);}
+tfoot td{font-weight:700;border-top:1px solid var(--line);background:var(--surface);
+  position:sticky;bottom:0;z-index:3;}
+tfoot td.name{border-right:1px solid var(--line);z-index:4;}
+tfoot td.chk{z-index:4;}
+.filt{opacity:.35;font-size:8px;margin-left:2px;}
+td input[type=text],td input:not([type]){font:inherit;width:90px;text-align:right;border:1px solid var(--line);
+  border-radius:5px;padding:3px 6px;background:var(--bg);color:var(--ink);}
 .del{border:none;background:none;color:var(--danger);font-weight:700;padding:2px 6px;cursor:pointer;}
 .addbox{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--chip);
   border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
@@ -95,7 +107,11 @@ td input{font:inherit;width:90px;text-align:right;border:1px solid var(--line);b
 <div id="app"><p class="hint" style="padding:20px">데이터를 불러오는 중…</p></div>
 <script>
 'use strict';
-let HOLD=[], HIST=[], sortKey=null, sortDir=1, editMode=false, dirty=false, sha=null;
+let HOLD=[], HIST=[], sortKey=null, sortDir=1, editMode=false, dirty=false, onlySel=false;
+let SEL=new Set();
+try{ SEL=new Set(JSON.parse(localStorage.getItem('sel_codes')||'[]')); }catch(_){}
+function saveSel(){ try{localStorage.setItem('sel_codes',JSON.stringify([...SEL]));}catch(_){} }
+
 const $=s=>document.querySelector(s);
 const fmt=n=>n==null||isNaN(n)?'—':Math.round(n).toLocaleString('ko-KR');
 const fpct=v=>v==null?'':((v>0?'+':'')+(v*100).toFixed(1));
@@ -108,7 +124,7 @@ function repoInfo(){
   return null;
 }
 function getToken(){ try{return localStorage.getItem('gh_token')||'';}catch(_){return '';} }
-function setToken(t){ try{localStorage.setItem('gh_token',t);}catch(_){/* 무시 */} }
+function setToken(t){ try{localStorage.setItem('gh_token',t);}catch(_){} }
 
 function priceAt(code,back){
   const i=HIST.length-1-back;
@@ -116,16 +132,20 @@ function priceAt(code,back){
   const v=HIST[i].p[code];
   return (typeof v==='number'&&isFinite(v))?v:null;
 }
+/* 히트맵: ±5% 미만 옅게 → ±20%까지 점점 진하게 → ±20% 이상은 확실히 진하고 굵게 */
 function pctCell(v){
   if(v==null)return '<td class="pct dim"></td>';
   const cls=v>0?'up':(v<0?'down':'');
   const col=v>0?'var(--up)':'var(--down)';
-  const i=Math.min(Math.abs(v)/0.10,1)*22;
-  return `<td class="pct ${cls}" style="--hcol:${col};--i:${i.toFixed(1)}">${fpct(v)}</td>`;
+  const a=Math.abs(v);
+  let i, ex='';
+  if(a>=0.20){ i=58; ex=' ex'; }
+  else{ i=Math.min(a/0.20,1)*32; }
+  return `<td class="pct ${cls}${ex}" style="--hcol:${col};--i:${i.toFixed(1)}">${fpct(v)}</td>`;
 }
 
 function render(){
-  const rows=HOLD.map((h,idx)=>{
+  let rows=HOLD.map((h,idx)=>{
     const cur=priceAt(h.code,0);
     const cost=h.buy*h.qty, val=cur!=null?cur*h.qty:null;
     const pl=val!=null?val-cost:null, rr=(pl!=null&&cost>0)?pl/cost:null;
@@ -133,10 +153,14 @@ function render(){
     for(let k=1;k<=20;k++){const past=priceAt(h.code,k);d.push((cur!=null&&past)?cur/past-1:null);}
     return {h,idx,cur,cost,val,pl,rr,d};
   });
+  if(onlySel&&!editMode) rows=rows.filter(r=>SEL.has(r.h.code));
   if(sortKey&&!editMode){
     rows.sort((a,b)=>{
       if(sortKey==='n'){return sortDir*(a.h.name<b.h.name?-1:1);}
-      let x=sortKey==='d1'?a.d[0]:a[sortKey], y=sortKey==='d1'?b.d[0]:b[sortKey];
+      const dm=/^d(\d+)$/.exec(sortKey);
+      const pick=r=>sortKey==='sel'?(SEL.has(r.h.code)?1:0)
+        :dm?r.d[+dm[1]-1]:(sortKey==='buy'?r.h.buy:(sortKey==='qty'?r.h.qty:r[sortKey]));
+      let x=pick(a),y=pick(b);
       if(x==null)x=-Infinity; if(y==null)y=-Infinity;
       return sortDir*(x-y);
     });
@@ -145,14 +169,18 @@ function render(){
   const tVal=rows.reduce((s,r)=>s+(r.val||0),0);
   const tPl=tVal-tCost, tRr=tCost>0?tPl/tCost:0;
   const asof=HIST.length?HIST[HIST.length-1].d:'—';
-  const sm=k=>sortKey===k?`<span class="sortmark">${sortDir>0?'▲':'▼'}</span>`:'';
+  const sm=k=>sortKey===k?`<span class="sortmark">${sortDir>0?'▲':'▼'}</span>`:'<span class="filt">▼</span>';
   const ri=repoInfo();
+  const allChecked=rows.length>0&&rows.every(r=>SEL.has(r.h.code));
 
   let dcols='';
-  for(let k=1;k<=20;k++)dcols+=`<th ${k===1?'data-sort="d1"':''}>${k}D %</th>`;
+  for(let k=1;k<=20;k++){
+    dcols+=`<th data-sort="d${k}">${k}D %${sm('d'+k)}</th>`;
+  }
   let body='';
   for(const r of rows){
     const h=r.h;
+    const chk=`<td class="chk"><input type="checkbox" data-sel="${esc(h.code)}" ${SEL.has(h.code)?'checked':''} aria-label="${esc(h.name)} 선택"></td>`;
     let name,buy,qty;
     if(editMode){
       name=`<td class="name"><button class="del" data-del="${r.idx}" title="삭제">✕</button> ${esc(h.name)} <span class="hint">${esc(h.code)}</span></td>`;
@@ -163,7 +191,7 @@ function render(){
       buy=`<td>${fmt(h.buy)}</td>`; qty=`<td>${fmt(h.qty)}</td>`;
     }
     const plCls=r.pl>0?'up':(r.pl<0?'down':'');
-    body+=`<tr>${name}${buy}${qty}
+    body+=`<tr>${chk}${name}${buy}${qty}
       <td>${fmt(r.val)}</td><td class="${plCls}">${fmt(r.pl)}</td>
       <td class="${plCls}">${r.rr==null?'—':fpct(r.rr)}</td>
       <td>${fmt(r.cur)}</td>${r.d.map(pctCell).join('')}</tr>`;
@@ -180,38 +208,41 @@ function render(){
   const plCls=tPl>0?'up':(tPl<0?'down':'');
   $('#app').innerHTML=`
   <div class="hdr">
-    <div><h1>보유종목 시세판</h1><span class="asof">기준일 ${asof} · ${HOLD.length}종목 · 시세기록 ${HIST.length}일 · 평일 16:40 자동 갱신</span></div>
+    <div><h1>보유종목 시세판</h1><span class="asof">기준일 ${asof} · ${rows.length}${onlySel?'/'+HOLD.length:''}종목 · 시세기록 ${HIST.length}일</span></div>
     <div class="stats">
-      <div class="stat"><div class="lbl">총 매입금액</div><div class="val">${fmt(tCost)}</div></div>
-      <div class="stat"><div class="lbl">총 평가금액</div><div class="val">${fmt(tVal)}</div></div>
+      <div class="stat"><div class="lbl">${onlySel?'선택':'총'} 매입금액</div><div class="val">${fmt(tCost)}</div></div>
+      <div class="stat"><div class="lbl">${onlySel?'선택':'총'} 평가금액</div><div class="val">${fmt(tVal)}</div></div>
       <div class="stat"><div class="lbl">평가손익</div><div class="val" style="color:var(--${tPl>=0?'up':'down'})">${fmt(tPl)}</div></div>
       <div class="stat"><div class="lbl">수익률</div><div class="val" style="color:var(--${tPl>=0?'up':'down'})">${fpct(tRr)}%</div></div>
     </div>
   </div>
   <div class="bar">
     <button class="primary" id="btn-reload">새로고침</button>
+    <button id="btn-onlysel" class="${onlySel?'on':''}">선택만 보기 (${SEL.size})</button>
     <button id="btn-edit">${editMode?'편집 닫기':'종목 편집'}</button>
     ${editMode?`<button class="primary" id="btn-save" ${dirty?'':'disabled'}>GitHub에 저장</button>`:''}
     ${dirty?'<span class="dirty-note">저장되지 않은 변경사항</span>':''}
     ${ri?`<a class="btn" href="https://github.com/${ri.owner}/${ri.repo}/actions/workflows/update.yml" target="_blank" rel="noopener">지금 조회 실행</a>`:''}
   </div>
   ${addbox}
-  <div class="tblwrap"><table>
+  <div class="tblwrap" id="wrap"><table id="tbl">
     <thead><tr>
+      <th class="chk" data-sort="sel" style="cursor:pointer"><input type="checkbox" id="chk-all" ${allChecked?'checked':''} aria-label="전체 선택">${sm('sel')}</th>
       <th class="name" data-sort="n">종목명${sm('n')}</th>
-      <th>매입단가</th><th>매입수량</th>
+      <th data-sort="buy">매입단가${sm('buy')}</th>
+      <th data-sort="qty">매입수량${sm('qty')}</th>
       <th data-sort="val">평가금액${sm('val')}</th>
       <th data-sort="pl">평가손익${sm('pl')}</th>
       <th data-sort="rr">수익률${sm('rr')}</th>
       <th data-sort="cur">현재가${sm('cur')}</th>${dcols}
     </tr></thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td class="name">합계</td><td></td><td></td>
+    <tfoot><tr><td class="chk"></td><td class="name">합계</td><td></td><td></td>
       <td>${fmt(tVal)}</td><td class="${plCls}">${fmt(tPl)}</td>
       <td class="${plCls}">${fpct(tRr)}%</td><td></td><td colspan="20"></td></tr></tfoot>
   </table></div>
-  <p class="hint" style="margin-top:8px">nD % = 최신 종가가 n거래일 전 대비 등락률 · 시세는 GitHub Actions가 평일 장 마감 후 자동 기록 ·
-  [종목 편집]에서 추가/삭제 후 [GitHub에 저장] · [지금 조회 실행] → Run workflow로 수동 갱신</p>
+  <p class="hint" style="margin-top:8px">nD % = 최신 종가가 n거래일 전 대비 등락률 (±20% 이상은 진하게 강조) · 체크한 종목은 [선택만 보기]로 모아 비교 ·
+  정렬은 드롭다운 또는 열 제목 클릭 · 시세는 자동 기록, [지금 조회 실행]으로 수동 갱신</p>
   <div id="modal-slot"></div>`;
   bind();
 }
@@ -224,16 +255,39 @@ function bind(){
     if(editMode&&dirty&&!confirm('저장하지 않은 변경사항이 있습니다. 편집을 닫을까요?'))return;
     editMode=!editMode; render();
   };
+  $('#btn-onlysel').onclick=()=>{
+    if(!SEL.size&&!onlySel){toast('먼저 비교할 종목을 체크하세요');return;}
+    onlySel=!onlySel; render();
+  };
+  $('#chk-all').onchange=e=>{
+    const codes=[...document.querySelectorAll('input[data-sel]')].map(i=>i.dataset.sel);
+    if(e.target.checked)codes.forEach(c=>SEL.add(c)); else codes.forEach(c=>SEL.delete(c));
+    saveSel(); render();
+  };
+  document.querySelectorAll('input[data-sel]').forEach(cb=>{
+    cb.onchange=()=>{
+      if(cb.checked)SEL.add(cb.dataset.sel); else SEL.delete(cb.dataset.sel);
+      saveSel();
+      const btn=$('#btn-onlysel'); btn.textContent=`선택만 보기 (${SEL.size})`;
+      if(onlySel)render();
+    };
+  });
   const sv=$('#btn-save'); if(sv)sv.onclick=saveHoldings;
   document.querySelectorAll('th[data-sort]').forEach(th=>{
-    th.onclick=()=>{const k=th.dataset.sort;
+    th.onclick=e=>{
+      if(e.target.type==='checkbox')return;
+      const k=th.dataset.sort;
       if(sortKey===k)sortDir=-sortDir;else{sortKey=k;sortDir=k==='n'?1:-1;}render();};
   });
+  // 틀고정: 표 내용만 세로 스크롤 (상단 요약·버튼·헤더행·합계행은 화면에 고정)
+  const wrap=$('#wrap');
+  const fit=()=>{wrap.style.maxHeight=Math.max(240,window.innerHeight-wrap.getBoundingClientRect().top-14)+'px';};
+  fit(); window.onresize=fit;
   if(editMode){
     document.querySelectorAll('.del').forEach(b=>{
       b.onclick=()=>{
         const h=HOLD[+b.dataset.del];
-        if(confirm(h.name+' 종목을 삭제할까요?')){HOLD.splice(+b.dataset.del,1);markDirty();render();}
+        if(confirm(h.name+' 종목을 삭제할까요?')){SEL.delete(h.code);saveSel();HOLD.splice(+b.dataset.del,1);markDirty();render();}
       };
     });
     document.querySelectorAll('td input[data-f]').forEach(inp=>{
