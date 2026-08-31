@@ -69,7 +69,6 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:po
 tbody tr:hover td{box-shadow:inset 0 -2px 0 var(--accent);}
 td.up{color:var(--up);} td.down{color:var(--down);}
 td.pct{background:color-mix(in srgb, var(--hcol,transparent) calc(var(--i,0)*1%), transparent);}
-td.pct.ex{font-weight:700;}
 td.dim{color:var(--muted);}
 tfoot td{font-weight:700;border-top:1px solid var(--line);background:var(--surface);
   position:sticky;bottom:0;z-index:3;}
@@ -138,10 +137,8 @@ function pctCell(v){
   const cls=v>0?'up':(v<0?'down':'');
   const col=v>0?'var(--up)':'var(--down)';
   const a=Math.abs(v);
-  let i, ex='';
-  if(a>=0.20){ i=58; ex=' ex'; }
-  else{ i=Math.min(a/0.20,1)*32; }
-  return `<td class="pct ${cls}${ex}" style="--hcol:${col};--i:${i.toFixed(1)}">${fpct(v)}</td>`;
+  const i=a>=0.20?40:Math.min(a/0.20,1)*32;
+  return `<td class="pct ${cls}" style="--hcol:${col};--i:${i.toFixed(1)}">${fpct(v)}</td>`;
 }
 
 function render(){
