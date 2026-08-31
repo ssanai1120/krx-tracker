@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>보유종목 시세판</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#F6F7F9; --surface:#FFFFFF; --ink:#1B2431; --muted:#66707F;
+  --line:#E4E8EE; --line-soft:#EEF1F5; --accent:#234A78; --accent-ink:#FFFFFF;
+  --up:#D64545; --down:#2B6CD4; --chip:#EDF2F8; --danger:#B3261E;
+  --shadow:0 1px 3px rgba(20,30,50,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131820; --surface:#1B222D; --ink:#E7ECF2; --muted:#8C97A8;
+    --line:#2A3340; --line-soft:#232C38; --accent:#7FA8D9; --accent-ink:#101722;
+    --up:#F07575; --down:#77A9F5; --chip:#232E3C; --danger:#F2B8B5;
+    --shadow:0 1px 3px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131820; --surface:#1B222D; --ink:#E7ECF2; --muted:#8C97A8;
+  --line:#2A3340; --line-soft:#232C38; --accent:#7FA8D9; --accent-ink:#101722;
+  --up:#F07575; --down:#77A9F5; --chip:#232E3C; --danger:#F2B8B5;
+  --shadow:0 1px 3px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:'IBM Plex Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+  font-size:13px;line-height:1.45;}
+#app{padding:18px 20px 40px;max-width:1600px;margin:0 auto;}
+.hdr{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;margin-bottom:14px;}
+.hdr h1{font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em;}
+.hdr .asof{color:var(--muted);font-size:12px;margin-left:2px;}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:8px 14px;box-shadow:var(--shadow);min-width:120px;}
+.stat .lbl{font-size:11px;color:var(--muted);letter-spacing:.04em;}
+.stat .val{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+button,a.btn{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink);padding:7px 14px;font-weight:600;
+  text-decoration:none;display:inline-block;}
+button:hover,a.btn:hover{border-color:var(--accent);}
+button:focus-visible,a.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+button:disabled{opacity:.45;cursor:default;}
+.dirty-note{font-size:12px;color:var(--up);font-weight:600;}
+.tblwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;box-shadow:var(--shadow);}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;
+  font-variant-numeric:tabular-nums;}
+th,td{padding:6px 10px;white-space:nowrap;border-bottom:1px solid var(--line-soft);text-align:right;}
+th{position:sticky;top:0;background:var(--surface);z-index:3;font-size:11px;color:var(--muted);
+  font-weight:600;letter-spacing:.03em;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;}
+th.name,td.name{position:sticky;left:0;background:var(--surface);z-index:2;text-align:left;
+  font-weight:600;border-right:1px solid var(--line);max-width:210px;overflow:hidden;text-overflow:ellipsis;}
+th.name{z-index:4;}
+tbody tr:hover td{background:var(--line-soft);}
+td.up{color:var(--up);} td.down{color:var(--down);}
+td.pct{background:color-mix(in srgb, var(--hcol,transparent) calc(var(--i,0)*1%), transparent);}
+td.dim{color:var(--muted);}
+tfoot td{font-weight:700;border-top:1px solid var(--line);background:var(--surface);}
+tfoot td.name{border-right:1px solid var(--line);}
+td input{font:inherit;width:90px;text-align:right;border:1px solid var(--line);border-radius:5px;
+  padding:3px 6px;background:var(--bg);color:var(--ink);}
+.del{border:none;background:none;color:var(--danger);font-weight:700;padding:2px 6px;cursor:pointer;}
+.addbox{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--chip);
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
+.addbox input{font:inherit;border:1px solid var(--line);border-radius:5px;padding:5px 8px;
+  background:var(--surface);color:var(--ink);}
+.sortmark{font-size:9px;margin-left:3px;}
+.hint{font-size:11px;color:var(--muted);}
+.err{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:14px;margin:20px 0;}
+.overlay{position:fixed;inset:0;background:rgba(10,15,25,.45);display:flex;
+  align-items:center;justify-content:center;z-index:20;padding:20px;}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.25);width:min(520px,100%);padding:18px;}
+.modal h2{font-size:15px;margin:0 0 8px;}
+.modal p{font-size:12px;color:var(--muted);margin:6px 0;}
+.modal input{font:inherit;border:1px solid var(--line);border-radius:6px;padding:7px 9px;
+  background:var(--bg);color:var(--ink);width:100%;margin:8px 0;}
+.modal .mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);
+  color:var(--bg);padding:9px 18px;border-radius:8px;font-weight:600;z-index:30;}
+@media (prefers-reduced-motion: no-preference){
+  .toast{animation:pop .18s ease-out;}
+  @keyframes pop{from{opacity:0;transform:translateX(-50%) translateY(6px);}to{opacity:1;transform:translateX(-50%);}}
+}
+</style>
+</head>
+<body>
+<div id="app"><p class="hint" style="padding:20px">데이터를 불러오는 중…</p></div>
+<script>
+'use strict';
+let HOLD=[], HIST=[], sortKey=null, sortDir=1, editMode=false, dirty=false, sha=null;
+const $=s=>document.querySelector(s);
+const fmt=n=>n==null||isNaN(n)?'—':Math.round(n).toLocaleString('ko-KR');
+const fpct=v=>v==null?'':((v>0?'+':'')+(v*100).toFixed(1));
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+function repoInfo(){
+  const h=location.hostname, seg=location.pathname.split('/').filter(Boolean);
+  if(h.endsWith('.github.io')&&seg.length>=1)
+    return {owner:h.split('.')[0], repo:seg[0]};
+  return null;
+}
+function getToken(){ try{return localStorage.getItem('gh_token')||'';}catch(_){return '';} }
+function setToken(t){ try{localStorage.setItem('gh_token',t);}catch(_){/* 무시 */} }
+
+function priceAt(code,back){
+  const i=HIST.length-1-back;
+  if(i<0)return null;
+  const v=HIST[i].p[code];
+  return (typeof v==='number'&&isFinite(v))?v:null;
+}
+function pctCell(v){
+  if(v==null)return '<td class="pct dim"></td>';
+  const cls=v>0?'up':(v<0?'down':'');
+  const col=v>0?'var(--up)':'var(--down)';
+  const i=Math.min(Math.abs(v)/0.10,1)*22;
+  return `<td class="pct ${cls}" style="--hcol:${col};--i:${i.toFixed(1)}">${fpct(v)}</td>`;
+}
+
+function render(){
+  const rows=HOLD.map((h,idx)=>{
+    const cur=priceAt(h.code,0);
+    const cost=h.buy*h.qty, val=cur!=null?cur*h.qty:null;
+    const pl=val!=null?val-cost:null, rr=(pl!=null&&cost>0)?pl/cost:null;
+    const d=[];
+    for(let k=1;k<=20;k++){const past=priceAt(h.code,k);d.push((cur!=null&&past)?cur/past-1:null);}
+    return {h,idx,cur,cost,val,pl,rr,d};
+  });
+  if(sortKey&&!editMode){
+    rows.sort((a,b)=>{
+      if(sortKey==='n'){return sortDir*(a.h.name<b.h.name?-1:1);}
+      let x=sortKey==='d1'?a.d[0]:a[sortKey], y=sortKey==='d1'?b.d[0]:b[sortKey];
+      if(x==null)x=-Infinity; if(y==null)y=-Infinity;
+      return sortDir*(x-y);
+    });
+  }
+  const tCost=rows.reduce((s,r)=>s+r.cost,0);
+  const tVal=rows.reduce((s,r)=>s+(r.val||0),0);
+  const tPl=tVal-tCost, tRr=tCost>0?tPl/tCost:0;
+  const asof=HIST.length?HIST[HIST.length-1].d:'—';
+  const sm=k=>sortKey===k?`<span class="sortmark">${sortDir>0?'▲':'▼'}</span>`:'';
+  const ri=repoInfo();
+
+  let dcols='';
+  for(let k=1;k<=20;k++)dcols+=`<th ${k===1?'data-sort="d1"':''}>${k}D %</th>`;
+  let body='';
+  for(const r of rows){
+    const h=r.h;
+    let name,buy,qty;
+    if(editMode){
+      name=`<td class="name"><button class="del" data-del="${r.idx}" title="삭제">✕</button> ${esc(h.name)} <span class="hint">${esc(h.code)}</span></td>`;
+      buy=`<td><input data-f="buy" data-i="${r.idx}" value="${h.buy}"></td>`;
+      qty=`<td><input data-f="qty" data-i="${r.idx}" value="${h.qty}"></td>`;
+    }else{
+      name=`<td class="name">${esc(h.name)}</td>`;
+      buy=`<td>${fmt(h.buy)}</td>`; qty=`<td>${fmt(h.qty)}</td>`;
+    }
+    const plCls=r.pl>0?'up':(r.pl<0?'down':'');
+    body+=`<tr>${name}${buy}${qty}
+      <td>${fmt(r.val)}</td><td class="${plCls}">${fmt(r.pl)}</td>
+      <td class="${plCls}">${r.rr==null?'—':fpct(r.rr)}</td>
+      <td>${fmt(r.cur)}</td>${r.d.map(pctCell).join('')}</tr>`;
+  }
+  const addbox=editMode?`<div class="addbox">
+      <b style="font-size:12px">종목 추가</b>
+      <input id="add-code" placeholder="종목코드 (예: 005930)" style="width:150px">
+      <input id="add-name" placeholder="종목명" style="width:150px">
+      <input id="add-buy" placeholder="매입단가" style="width:110px;text-align:right">
+      <input id="add-qty" placeholder="수량" style="width:80px;text-align:right">
+      <button id="add-go" class="primary">추가</button>
+      <span class="hint">새 종목 시세는 다음 조회부터 반영됩니다</span>
+    </div>`:'';
+  const plCls=tPl>0?'up':(tPl<0?'down':'');
+  $('#app').innerHTML=`
+  <div class="hdr">
+    <div><h1>보유종목 시세판</h1><span class="asof">기준일 ${asof} · ${HOLD.length}종목 · 시세기록 ${HIST.length}일 · 평일 16:40 자동 갱신</span></div>
+    <div class="stats">
+      <div class="stat"><div class="lbl">총 매입금액</div><div class="val">${fmt(tCost)}</div></div>
+      <div class="stat"><div class="lbl">총 평가금액</div><div class="val">${fmt(tVal)}</div></div>
+      <div class="stat"><div class="lbl">평가손익</div><div class="val" style="color:var(--${tPl>=0?'up':'down'})">${fmt(tPl)}</div></div>
+      <div class="stat"><div class="lbl">수익률</div><div class="val" style="color:var(--${tPl>=0?'up':'down'})">${fpct(tRr)}%</div></div>
+    </div>
+  </div>
+  <div class="bar">
+    <button class="primary" id="btn-reload">새로고침</button>
+    <button id="btn-edit">${editMode?'편집 닫기':'종목 편집'}</button>
+    ${editMode?`<button class="primary" id="btn-save" ${dirty?'':'disabled'}>GitHub에 저장</button>`:''}
+    ${dirty?'<span class="dirty-note">저장되지 않은 변경사항</span>':''}
+    ${ri?`<a class="btn" href="https://github.com/${ri.owner}/${ri.repo}/actions/workflows/update.yml" target="_blank" rel="noopener">지금 조회 실행</a>`:''}
+  </div>
+  ${addbox}
+  <div class="tblwrap"><table>
+    <thead><tr>
+      <th class="name" data-sort="n">종목명${sm('n')}</th>
+      <th>매입단가</th><th>매입수량</th>
+      <th data-sort="val">평가금액${sm('val')}</th>
+      <th data-sort="pl">평가손익${sm('pl')}</th>
+      <th data-sort="rr">수익률${sm('rr')}</th>
+      <th data-sort="cur">현재가${sm('cur')}</th>${dcols}
+    </tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td class="name">합계</td><td></td><td></td>
+      <td>${fmt(tVal)}</td><td class="${plCls}">${fmt(tPl)}</td>
+      <td class="${plCls}">${fpct(tRr)}%</td><td></td><td colspan="20"></td></tr></tfoot>
+  </table></div>
+  <p class="hint" style="margin-top:8px">nD % = 최신 종가가 n거래일 전 대비 등락률 · 시세는 GitHub Actions가 평일 장 마감 후 자동 기록 ·
+  [종목 편집]에서 추가/삭제 후 [GitHub에 저장] · [지금 조회 실행] → Run workflow로 수동 갱신</p>
+  <div id="modal-slot"></div>`;
+  bind();
+}
+
+function markDirty(){dirty=true;const b=$('#btn-save');if(b)b.disabled=false;}
+
+function bind(){
+  $('#btn-reload').onclick=load;
+  $('#btn-edit').onclick=()=>{
+    if(editMode&&dirty&&!confirm('저장하지 않은 변경사항이 있습니다. 편집을 닫을까요?'))return;
+    editMode=!editMode; render();
+  };
+  const sv=$('#btn-save'); if(sv)sv.onclick=saveHoldings;
+  document.querySelectorAll('th[data-sort]').forEach(th=>{
+    th.onclick=()=>{const k=th.dataset.sort;
+      if(sortKey===k)sortDir=-sortDir;else{sortKey=k;sortDir=k==='n'?1:-1;}render();};
+  });
+  if(editMode){
+    document.querySelectorAll('.del').forEach(b=>{
+      b.onclick=()=>{
+        const h=HOLD[+b.dataset.del];
+        if(confirm(h.name+' 종목을 삭제할까요?')){HOLD.splice(+b.dataset.del,1);markDirty();render();}
+      };
+    });
+    document.querySelectorAll('td input[data-f]').forEach(inp=>{
+      inp.onchange=()=>{
+        const v=parseFloat(String(inp.value).replace(/,/g,''));
+        if(isFinite(v)&&v>0){HOLD[+inp.dataset.i][inp.dataset.f]=v;markDirty();render();}
+      };
+    });
+    $('#add-go').onclick=()=>{
+      const code=$('#add-code').value.trim();
+      const name=$('#add-name').value.trim();
+      const buy=parseFloat($('#add-buy').value.replace(/,/g,''));
+      const qty=parseFloat($('#add-qty').value.replace(/,/g,''));
+      if(!/^[0-9A-Za-z]{4,6}$/.test(code)){toast('종목코드를 확인하세요 (예: 005930)');return;}
+      if(!name||!isFinite(buy)||!isFinite(qty)){toast('종목명·매입단가·수량을 입력하세요');return;}
+      if(HOLD.some(h=>h.code===code)){toast('이미 있는 종목코드입니다');return;}
+      HOLD.push({code,name,buy,qty});
+      markDirty();render();
+      toast(name+' 추가됨 — [GitHub에 저장]을 눌러 반영하세요');
+    };
+  }
+}
+
+async function saveHoldings(){
+  const ri=repoInfo();
+  if(!ri){toast('GitHub Pages 주소에서만 저장할 수 있습니다 (미리보기 모드)');return;}
+  let token=getToken();
+  if(!token){askToken();return;}
+  const btn=$('#btn-save');btn.disabled=true;btn.textContent='저장 중…';
+  const apiUrl=`https://api.github.com/repos/${ri.owner}/${ri.repo}/contents/holdings.json`;
+  const hdrs={Authorization:'Bearer '+token,Accept:'application/vnd.github+json'};
+  try{
+    const cur=await fetch(apiUrl,{headers:hdrs});
+    if(cur.status===401||cur.status===403){setToken('');throw new Error('토큰이 유효하지 않습니다. 다시 입력해주세요.');}
+    if(!cur.ok)throw new Error('holdings.json 조회 실패 ('+cur.status+')');
+    const curJson=await cur.json();
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(HOLD,null,1))));
+    const put=await fetch(apiUrl,{method:'PUT',headers:hdrs,body:JSON.stringify({
+      message:'종목 편집 (대시보드에서 저장)',content,sha:curJson.sha})});
+    if(!put.ok)throw new Error('저장 실패 ('+put.status+')');
+    dirty=false;editMode=false;render();
+    toast('저장 완료 — 새 종목 시세는 다음 조회부터 반영됩니다');
+  }catch(e){
+    btn.disabled=false;btn.textContent='GitHub에 저장';
+    toast(e.message||'저장 중 오류가 발생했습니다');
+    if(!getToken())askToken();
+  }
+}
+
+function askToken(){
+  $('#modal-slot').innerHTML=`<div class="overlay" id="ov"><div class="modal">
+    <h2>GitHub 토큰 연결 (최초 1회)</h2>
+    <p>종목을 이 페이지에서 바로 저장하려면 GitHub 개인 액세스 토큰이 필요합니다.
+    토큰은 <b>이 브라우저에만</b> 저장되며 외부로 전송되지 않습니다.</p>
+    <p>만들기: GitHub → Settings → Developer settings → <b>Fine-grained tokens</b> → Generate new token
+    → Repository access: 이 저장소만 선택 → Permissions: <b>Contents → Read and write</b> → Generate</p>
+    <input id="tk" type="password" placeholder="github_pat_... 붙여넣기" autocomplete="off">
+    <div class="mfoot">
+      <button id="tk-cancel">취소</button>
+      <button class="primary" id="tk-ok">연결</button>
+    </div>
+  </div></div>`;
+  $('#tk-cancel').onclick=()=>{$('#modal-slot').innerHTML='';};
+  $('#tk-ok').onclick=()=>{
+    const t=$('#tk').value.trim();
+    if(!t){toast('토큰을 입력하세요');return;}
+    setToken(t);$('#modal-slot').innerHTML='';
+    saveHoldings();
+  };
+}
+
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3500);
+}
+
+async function load(){
+  if(dirty&&!confirm('저장하지 않은 변경사항이 사라집니다. 새로고침할까요?'))return;
+  dirty=false;
+  try{
+    const bust='?t='+Date.now();
+    const [h,p]=await Promise.all([
+      fetch('holdings.json'+bust).then(r=>{if(!r.ok)throw 0;return r.json();}),
+      fetch('data/prices.json'+bust).then(r=>{if(!r.ok)throw 0;return r.json();}),
+    ]);
+    HOLD=h; HIST=p.sort((a,b)=>a.d<b.d?-1:1);
+    render();
+  }catch(e){
+    $('#app').innerHTML='<div class="err"><b>데이터를 불러오지 못했습니다.</b><br>'
+      +'holdings.json과 data/prices.json이 저장소에 있는지, GitHub Pages가 켜져 있는지 확인하세요.</div>';
+  }
+}
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+name: 시세 업데이트
+
+on:
+  schedule:
+    - cron: '40 7 * * 1-5'   # 평일 16:40 KST — 예비용 (cron-job.org가 메인 트리거)
+  workflow_dispatch: {}       # cron-job.org와 수동 실행이 이 경로로 트리거
+
+permissions:
+  contents: write
+
+concurrency:
+  group: price-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install finance-datareader
+      - run: python fetch_prices.py
+      - name: 변경사항 커밋
+        run: |
+          git config user.name "price-bot"
+          git config user.email "actions@github.com"
+          git pull --rebase
+          git add data/prices.json
+          git diff --cached --quiet || git commit -m "시세 업데이트 $(date +%F)"
+          git push
