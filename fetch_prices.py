@@ -2,6 +2,7 @@
 """holdings.json의 종목 시세를 조회해 data/prices.json에 하루치 스냅샷을 추가한다.
 GitHub Actions가 평일 장 마감 후 자동 실행하며, 로컬에서 직접 실행해도 된다."""
 import json
+import os
 import sys
 import datetime
 
@@ -75,6 +76,7 @@ def main():
     history.sort(key=lambda s: s["d"])
     history = history[-260:]  # 약 1년치만 유지
 
+    os.makedirs(os.path.dirname(PRICES_FILE), exist_ok=True)
     json.dump(history, open(PRICES_FILE, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"\n{record_day} · {len(snap)}종목 기록"
           + (f" · 실패: {', '.join(failed)}" if failed else ""))
