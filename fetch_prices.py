@@ -75,11 +75,13 @@ def main():
         sys.exit("no prices fetched")
 
     record_day = max(day_votes, key=day_votes.get)  # 대다수 종목의 최신 거래일
+    now_kst = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%H:%M")
     existing = next((s for s in history if s["d"] == record_day), None)
     if existing:
         existing["p"].update(snap)
+        existing["t"] = now_kst  # 조회 시각 (KST)
     else:
-        history.append({"d": record_day, "p": snap})
+        history.append({"d": record_day, "t": now_kst, "p": snap})
     history.sort(key=lambda s: s["d"])
     history = history[-260:]  # 약 1년치만 유지
 
