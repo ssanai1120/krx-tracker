@@ -43,6 +43,13 @@ def main():
     if len(history) <= 1:  # 최초 실행: 과거 기록 자동 소급
         print("첫 실행 — 과거 시세를 소급해서 채웁니다...")
         history = backfill(holdings, history)
+    else:
+        # 기록이 21일치 미만인 종목(새로 추가된 종목)만 과거 시세 자동 소급
+        need = [h for h in holdings
+                if sum(1 for s in history if h["code"] in s["p"]) < 21]
+        if need:
+            print(f"신규 종목 과거 소급: {', '.join(h['name'] for h in need)}")
+            history = backfill(need, history)
 
     end = datetime.date.today()
     start = end - datetime.timedelta(days=14)
