@@ -521,7 +521,7 @@ function openTrade(i){
       return `<div class="trow">
         <span class="hint">${l.d}</span>
         <span class="${l.side==='b'?'chipb':'chips'}">${l.side==='b'?'매수':'매도'}</span>
-        <span>${fmt(l.price)} × ${fmt(l.qty)}주</span>
+        <span>${fmt(l.price)} × ${fmt(l.qty)}주 <span class="hint">= ${fmt(l.price*l.qty)}원</span></span>
         <span class="sp"></span>
         ${rd.closed?'':`<button data-ldel="${h.rounds.indexOf(rd)}:${li}" title="잘못 입력한 기록 삭제 (평단·수량 되돌림)">취소</button>`}
       </div>`;
@@ -554,6 +554,7 @@ function openTrade(i){
           <select data-lside="${ri}"><option value="b" ${waitBuy?'selected':''}>매수</option><option value="s" ${!waitBuy&&a.dir?'selected':''}>매도</option></select>
           <input data-lprice="${ri}" placeholder="가격" style="width:88px;text-align:right" inputmode="decimal">
           <input data-lqty="${ri}" placeholder="수량" style="width:62px;text-align:right" inputmode="decimal">
+          <span class="hint" data-lamt="${ri}" style="min-width:90px">= —</span>
           <button class="primary" data-ladd="${ri}">기록</button>
         </div>
         ${sim}
@@ -630,6 +631,18 @@ function openTrade(i){
       const ri=+inp.dataset.simpct;
       inp.oninput=()=>runSim(ri);
       runSim(ri);
+    });
+
+    // --- 입력 폼 금액 실시간 계산 ---
+    document.querySelectorAll('[data-lamt]').forEach(sp=>{
+      const ri=sp.dataset.lamt;
+      const pi=document.querySelector(`[data-lprice="${ri}"]`);
+      const qi=document.querySelector(`[data-lqty="${ri}"]`);
+      const upd=()=>{
+        const p=parseFloat(pi.value.replace(/,/g,'')), q=parseFloat(qi.value.replace(/,/g,''));
+        sp.textContent=(isFinite(p)&&isFinite(q)&&p>0&&q>0)?'= '+fmt(p*q)+'원':'= —';
+      };
+      pi.oninput=upd; qi.oninput=upd;
     });
 
     // --- 새 라운드 ---
