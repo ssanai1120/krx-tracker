@@ -82,8 +82,48 @@ th.sig{z-index:4;}
 .legend span{display:inline-flex;gap:5px;align-items:center;}
 .lbl-in{font:inherit;font-size:11px;border:1px solid var(--line);border-radius:5px;
   padding:2px 6px;width:86px;background:var(--surface);color:var(--ink);}
+.pencil{border:none;background:none;cursor:pointer;color:var(--line);font-size:12px;
+  padding:0 2px;flex:none;}
+.pencil.act{color:var(--accent);}
+.pencil:hover{color:var(--accent);border:none;}
+.modal.wide{width:min(680px,100%);max-height:88vh;display:flex;flex-direction:column;}
+.modal .mscroll{overflow-y:auto;padding:0 18px 6px;}
+.tstat{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:10px 0 14px;}
+.tstat>div{background:var(--chip);border-radius:7px;padding:7px 10px;}
+.tstat .lbl{font-size:10px;color:var(--muted);}
+.tstat .val{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;}
+.tsec{font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px;
+  border-bottom:1px solid var(--line-soft);padding-bottom:4px;}
+.trow{display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--line-soft);
+  font-variant-numeric:tabular-nums;font-size:12px;}
+.trow .chipb,.trow .chips{font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px;}
+.chipb{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up);}
+.chips{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down);}
+.trow .sp{flex:1;}
+.trow button{padding:2px 8px;font-size:11px;}
+.tform{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0;}
+.tform input,.tform select{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:5px;
+  padding:5px 7px;background:var(--bg);color:var(--ink);}
+.sim{display:grid;gap:8px;}
+.simrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;
+  background:var(--chip);border-radius:7px;padding:8px 10px;}
+.simrow input{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:5px;
+  padding:4px 6px;width:76px;text-align:right;background:var(--surface);color:var(--ink);}
+.simrow b{font-variant-numeric:tabular-nums;}
+.memo-ta{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:6px;
+  padding:8px;background:var(--bg);color:var(--ink);width:100%;height:70px;resize:vertical;}
+.round{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--bg);}
+.rhead{display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap;margin-bottom:2px;}
+.rhead .chipb,.rhead .chips{font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px;}
+.rhead .rsum{font-variant-numeric:tabular-nums;}
+.rhead .sp{flex:1;}
+.rhead button{padding:2px 8px;font-size:11px;}
+.donefold{font-size:11px;color:var(--muted);cursor:pointer;margin:6px 0;user-select:none;}
+.rarrow{font-size:13px;color:var(--accent);width:18px;text-align:center;flex:none;}
 th.name,td.name{position:sticky;left:66px;background:var(--surface);z-index:2;text-align:left;
-  font-weight:600;border-right:1px solid var(--line);max-width:210px;overflow:hidden;text-overflow:ellipsis;}
+  font-weight:600;border-right:1px solid var(--line);width:150px;max-width:150px;}
+.namecell{display:flex;align-items:center;gap:4px;width:100%;}
+.namecell .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 th.name{z-index:4;}
 input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
 /* 행 하이라이트: 배경 대신 회색 아래줄 (히트맵 색이 변하지 않음) · 체크한 종목은 항상 유지 */
@@ -225,7 +265,7 @@ function render(){
       qty=`<td><input data-f="qty" data-i="${r.idx}" value="${h.qty}"></td>`;
     }else{
       sig=`<td class="sig">${sigDot(h.sig)}</td>`;
-      name=`<td class="name">${esc(h.name)}</td>`;
+      name=`<td class="name"><span class="namecell"><span class="nm" title="${esc(h.name)}">${esc(h.name)}</span><button class="pencil${hasActivity(h)?' act':''}" data-trade="${r.idx}" title="${hasActivity(h)?'기록 있음 — ':''}매매 기록·시뮬레이션·메모">✎</button></span></td>`;
       buy=`<td>${fmt(h.buy)}</td>`; qty=`<td>${fmt(h.qty)}</td>`;
     }
     const plCls=r.pl>0?'up':(r.pl<0?'down':'');
@@ -261,7 +301,7 @@ function render(){
     <button class="primary" id="btn-reload">새로고침</button>
     <button id="btn-onlysel" class="${onlySel?'on':''}">선택만 보기 (${SEL.size})</button>
     <button id="btn-edit">${editMode?'편집 닫기':'종목 편집'}</button>
-    ${editMode?`<button class="primary" id="btn-save" ${dirty?'':'disabled'}>GitHub에 저장</button>`:''}
+    ${(editMode||dirty)?`<button class="primary" id="btn-save" ${dirty?'':'disabled'}>GitHub에 저장</button>`:''}
     ${dirty?'<span class="dirty-note">저장되지 않은 변경사항</span>':''}
     ${ri?`<a class="btn" href="https://github.com/${ri.owner}/${ri.repo}/actions/workflows/update.yml" target="_blank" rel="noopener">지금 조회 실행</a>`:''}
   </div>
@@ -323,6 +363,9 @@ function bind(){
     };
   });
   const sv=$('#btn-save'); if(sv)sv.onclick=saveHoldings;
+  document.querySelectorAll('.pencil[data-trade]').forEach(b=>{
+    b.onclick=e=>{e.stopPropagation();openTrade(+b.dataset.trade);};
+  });
   document.querySelectorAll('th[data-sort]').forEach(th=>{
     th.onclick=e=>{
       if(e.target.type==='checkbox')return;
@@ -438,6 +481,241 @@ async function saveHoldings(){
     toast(e.message||'저장 중 오류가 발생했습니다');
     if(!getToken())askToken();
   }
+}
+
+const todayKST=()=>new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
+
+// ---------- 라운드(회전 매매) · 시뮬레이션 · 메모 팝업 ----------
+function roundAgg(rd){
+  let sq=0,sa=0,bq=0,ba=0,first=null,last=null;
+  for(const l of rd.legs){
+    if(l.side==='s'){sq+=l.qty;sa+=l.price*l.qty;}else{bq+=l.qty;ba+=l.price*l.qty;}
+    if(!first||l.d<first)first=l.d;
+    if(!last||l.d>last)last=l.d;
+  }
+  const avgS=sq?sa/sq:null, avgB=bq?ba/bq:null;
+  const matched=Math.min(sq,bq);
+  const profit=(matched&&avgS!=null&&avgB!=null)?Math.round(matched*(avgS-avgB)):0;
+  const dir=rd.legs.length?rd.legs[0].side:null; // 선행 방향
+  return {sq,bq,avgS,avgB,matched,profit,dir,first,last,remain:Math.abs(sq-bq)};
+}
+function openRounds(h){return (h.rounds||[]).filter(r=>!r.closed);}
+function hasActivity(h){return !!(h.memo||openRounds(h).length);}
+
+function openTrade(i){
+  const h=HOLD[i];
+  if(!h.rounds)h.rounds=[];
+  let showDone=false;
+
+  const expanded=new Set();
+  const draw=()=>{
+    const cur=priceAt(h.code,0);
+    const cost=h.buy*h.qty, val=cur!=null?cur*h.qty:null;
+    const pl=val!=null?val-cost:null;
+    const closed=h.rounds.filter(r=>r.closed);
+    const opens=h.rounds.filter(r=>!r.closed);
+    const totalProfit=closed.reduce((s,r)=>s+roundAgg(r).profit,0);
+
+    const legRow=(rd,li)=>{
+      const l=rd.legs[li];
+      return `<div class="trow">
+        <span class="hint">${l.d}</span>
+        <span class="${l.side==='b'?'chipb':'chips'}">${l.side==='b'?'매수':'매도'}</span>
+        <span>${fmt(l.price)} × ${fmt(l.qty)}주</span>
+        <span class="sp"></span>
+        ${rd.closed?'':`<button data-ldel="${h.rounds.indexOf(rd)}:${li}" title="잘못 입력한 기록 삭제 (평단·수량 되돌림)">취소</button>`}
+      </div>`;
+    };
+
+    const openCard=rd=>{
+      const ri=h.rounds.indexOf(rd);
+      const a=roundAgg(rd);
+      const waitBuy=a.dir==='s'; // 매도 선행 → 재매수 대기
+      let sim='';
+      if(a.dir&&a.remain>0){
+        const base=waitBuy?a.avgS:a.avgB;
+        sim=`<div class="simrow">차익
+          <input data-simpct="${ri}" value="${rd.simPct!=null?rd.simPct:5}" inputmode="decimal">% 목표 →
+          ${waitBuy?'매수가':'매도가'} <b data-simout="${ri}">—</b>
+          <span class="hint" data-simexp="${ri}"></span></div>`;
+      }
+      return `<div class="round">
+        <div class="rhead">
+          <span class="${a.dir==='s'?'chips':'chipb'}">${a.dir==='s'?'매도 선행':a.dir==='b'?'매수 선행':'새 라운드'}</span>
+          <span class="hint">${a.first||''}</span>
+          <span class="rsum">${a.sq?`매도 ${fmt(a.sq)}주@${fmt(a.avgS)}`:''}${a.sq&&a.bq?' · ':''}${a.bq?`매수 ${fmt(a.bq)}주@${fmt(a.avgB)}`:''}${a.remain?` · <b>잔여 ${fmt(a.remain)}주 ${waitBuy?'재매수 대기':'매도 대기'}</b>`:a.dir?' · 수량 일치':''}</span>
+          <span class="sp"></span>
+          ${a.matched?`<span style="color:var(--${a.profit>=0?'up':'down'});font-weight:700">${a.profit>=0?'+':''}${fmt(a.profit)}</span>`:''}
+          <button data-rclose="${ri}" title="라운드를 마감하고 회전 차익을 확정">종료</button>
+        </div>
+        ${rd.legs.map((_,li)=>legRow(rd,li)).join('')}
+        <div class="tform">
+          <input type="date" data-ld="${ri}" value="${todayKST()}">
+          <select data-lside="${ri}"><option value="b" ${waitBuy?'selected':''}>매수</option><option value="s" ${!waitBuy&&a.dir?'selected':''}>매도</option></select>
+          <input data-lprice="${ri}" placeholder="가격" style="width:88px;text-align:right" inputmode="decimal">
+          <input data-lqty="${ri}" placeholder="수량" style="width:62px;text-align:right" inputmode="decimal">
+          <button class="primary" data-ladd="${ri}">기록</button>
+        </div>
+        ${sim}
+      </div>`;
+    };
+
+    const closedRow=rd=>{
+      const ri=h.rounds.indexOf(rd);
+      const a=roundAgg(rd);
+      const isOpen=expanded.has(ri);
+      return `<div class="trow" data-rexp="${ri}" style="cursor:pointer" title="클릭하면 세부 기록을 펼칩니다">
+        <span class="rarrow">${isOpen?'▼':'▶'}</span><span class="hint">${a.first||''} ~ ${a.last||''}</span>
+        <span class="${a.dir==='s'?'chips':'chipb'}">${a.dir==='s'?'매도 선행':'매수 선행'}</span>
+        <span>${fmt(a.matched)}주 회전</span>
+        <span style="color:var(--${a.profit>=0?'up':'down'});font-weight:700">${a.profit>=0?'+':''}${fmt(a.profit)}</span>
+        <span class="sp"></span>
+        <button data-rdel="${ri}" title="종료된 라운드를 목록에서 제거 (평단에는 영향 없음)">삭제</button>
+      </div>${isOpen?`<div style="padding-left:18px">${rd.legs.map((_,li)=>legRow(rd,li)).join('')}</div>`:''}`;
+    };
+
+    $('#modal-slot').innerHTML=`<div class="overlay" id="tov"><div class="modal wide">
+      <h2 style="padding:16px 18px 0;margin:0">${sigDot(h.sig)} ${esc(h.name)} <span class="hint">${esc(h.code)}</span></h2>
+      <div class="mscroll">
+        <div class="tstat">
+          <div><div class="lbl">평단</div><div class="val">${fmt(h.buy)}</div></div>
+          <div><div class="lbl">수량</div><div class="val">${fmt(h.qty)}</div></div>
+          <div><div class="lbl">현재가</div><div class="val">${fmt(cur)}</div></div>
+          <div><div class="lbl">평가손익</div><div class="val" style="color:var(--${(pl||0)>=0?'up':'down'})">${fmt(pl)}</div></div>
+          <div><div class="lbl">회전 차익 누계</div><div class="val" style="color:var(--${totalProfit>=0?'up':'down'})">${totalProfit>=0?'+':''}${fmt(totalProfit)}</div></div>
+        </div>
+
+        <div class="tsec">진행 중 라운드
+          <span class="hint" style="font-weight:400">— 기록하면 평단·수량에 자동 반영 · 첫 기록이 매도면 "급등 매도→재매수", 매수면 "급락 매수→매도" 회전</span></div>
+        ${opens.length?opens.map(openCard).join(''):'<div class="hint" style="padding:4px 0">진행 중인 라운드 없음</div>'}
+        <button id="r-new" style="margin-top:6px">+ 새 라운드</button>
+
+        ${closed.length?`<div class="tsec">종료된 라운드</div>
+          <div class="donefold" id="t-fold">${closed.length}건 · 회전 차익 합계
+            <b style="color:var(--${totalProfit>=0?'up':'down'})">${totalProfit>=0?'+':''}${fmt(totalProfit)}</b>
+            ${showDone?'접기 ▲':'보기 ▼'}</div>
+          ${showDone?closed.map(closedRow).join(''):''}`:''}
+
+        <div class="tsec">메모</div>
+        <textarea class="memo-ta" id="t-memo" placeholder="이 종목에 대한 생각, 계획, 기준...">${esc(h.memo||'')}</textarea>
+        <p class="hint" style="margin:8px 0 2px">※ 모든 계산에 증권거래세·거래수수료는 반영되어 있지 않습니다.</p>
+      </div>
+      <div class="mfoot" style="padding:12px 18px;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center">
+        <span class="hint">${dirty?'변경사항은 메인 화면의 [GitHub에 저장]으로 보존됩니다':''}</span>
+        <button id="t-close">닫기</button>
+      </div>
+    </div></div>`;
+
+    // --- 라운드별 시뮬레이션 ---
+    const runSim=ri=>{
+      const rd=h.rounds[ri], a=roundAgg(rd);
+      const inp=document.querySelector(`[data-simpct="${ri}"]`);
+      const out=document.querySelector(`[data-simout="${ri}"]`);
+      const exp=document.querySelector(`[data-simexp="${ri}"]`);
+      if(!inp||!out)return;
+      const p=parseFloat(inp.value)/100;
+      rd.simPct=parseFloat(inp.value);
+      if(!isFinite(p)||a.remain<=0){out.textContent='—';if(exp)exp.textContent='';return;}
+      if(a.dir==='s'){ // 재매수 대기: 매도평균 대비 p% 아래에서 매수
+        const target=a.avgS*(1-p);
+        out.textContent=fmt(target)+'원';
+        if(exp)exp.textContent=`(잔여 ${fmt(a.remain)}주 기준 예상 차익 +${fmt(a.remain*(a.avgS-target))})`;
+      }else{ // 매도 대기: 매수평균 대비 p% 위에서 매도
+        const target=a.avgB*(1+p);
+        out.textContent=fmt(target)+'원';
+        if(exp)exp.textContent=`(잔여 ${fmt(a.remain)}주 기준 예상 차익 +${fmt(a.remain*(target-a.avgB))})`;
+      }
+    };
+    document.querySelectorAll('[data-simpct]').forEach(inp=>{
+      const ri=+inp.dataset.simpct;
+      inp.oninput=()=>runSim(ri);
+      runSim(ri);
+    });
+
+    // --- 새 라운드 ---
+    $('#r-new').onclick=()=>{h.rounds.push({legs:[]});draw();};
+
+    // --- 기록 추가 ---
+    document.querySelectorAll('[data-ladd]').forEach(b=>{
+      b.onclick=()=>{
+        const ri=+b.dataset.ladd, rd=h.rounds[ri];
+        const d=document.querySelector(`[data-ld="${ri}"]`).value;
+        const side=document.querySelector(`[data-lside="${ri}"]`).value;
+        const price=parseFloat(document.querySelector(`[data-lprice="${ri}"]`).value.replace(/,/g,''));
+        const qty=parseFloat(document.querySelector(`[data-lqty="${ri}"]`).value.replace(/,/g,''));
+        if(!d||!isFinite(price)||price<=0||!isFinite(qty)||qty<=0){toast('날짜·가격·수량을 확인하세요');return;}
+        if(side==='s'&&qty>h.qty){toast('보유 수량('+fmt(h.qty)+'주)보다 많이 팔 수 없습니다');return;}
+        if(side==='b'){
+          h.buy=(h.buy*h.qty+price*qty)/(h.qty+qty);
+          h.qty=h.qty+qty;
+        }else{
+          h.qty=h.qty-qty;
+        }
+        rd.legs.push({d,side,price,qty});
+        markDirty();render();draw();
+      };
+    });
+
+    // --- 기록 취소 (평단·수량 롤백) ---
+    document.querySelectorAll('[data-ldel]').forEach(b=>{
+      b.onclick=()=>{
+        const [ri,li]=b.dataset.ldel.split(':').map(Number);
+        const rd=h.rounds[ri], l=rd.legs[li];
+        if(!confirm('이 기록을 삭제하고 평단·수량을 되돌릴까요?'))return;
+        if(l.side==='b'){
+          const prevQty=h.qty-l.qty;
+          if(prevQty<=0){toast('이후 매매와 얽혀 되돌릴 수 없습니다. [종목 편집]에서 직접 보정하세요');return;}
+          h.buy=(h.buy*h.qty-l.price*l.qty)/prevQty;
+          h.qty=prevQty;
+        }else{
+          h.qty=h.qty+l.qty;
+        }
+        rd.legs.splice(li,1);
+        if(!rd.legs.length)h.rounds.splice(ri,1);
+        markDirty();render();draw();
+      };
+    });
+
+    // --- 라운드 종료 / 종료된 라운드 삭제 ---
+    document.querySelectorAll('[data-rclose]').forEach(b=>{
+      b.onclick=()=>{
+        const ri=+b.dataset.rclose, a=roundAgg(h.rounds[ri]);
+        if(!h.rounds[ri].legs.length){h.rounds.splice(ri,1);draw();return;}
+        const msg=a.remain>0
+          ?`잔여 ${fmt(a.remain)}주가 아직 ${a.dir==='s'?'재매수':'매도'}되지 않았습니다. 그래도 종료할까요?\n(회전 차익은 성사된 ${fmt(a.matched)}주 기준 ${a.profit>=0?'+':''}${fmt(a.profit)}원으로 확정)`
+          :`라운드를 종료하고 회전 차익 ${a.profit>=0?'+':''}${fmt(a.profit)}원을 확정할까요?`;
+        if(!confirm(msg))return;
+        h.rounds[ri].closed=1;
+        markDirty();render();draw();
+      };
+    });
+    document.querySelectorAll('[data-rexp]').forEach(row=>{
+      row.onclick=e=>{
+        if(e.target.tagName==='BUTTON')return;
+        const ri=+row.dataset.rexp;
+        expanded.has(ri)?expanded.delete(ri):expanded.add(ri);
+        draw();
+      };
+    });
+    document.querySelectorAll('[data-rdel]').forEach(b=>{
+      b.onclick=()=>{
+        if(!confirm('종료된 라운드를 목록에서 제거할까요? (평단·수량에는 영향 없음)'))return;
+        h.rounds.splice(+b.dataset.rdel,1);
+        markDirty();render();draw();
+      };
+    });
+
+    const fold=$('#t-fold');
+    if(fold)fold.onclick=()=>{showDone=!showDone;draw();};
+    $('#t-memo').onchange=()=>{
+      const v=$('#t-memo').value.trim();
+      if(v)h.memo=v; else delete h.memo;
+      markDirty();
+    };
+    $('#t-close').onclick=()=>{$('#modal-slot').innerHTML='';render();};
+    $('#tov').onclick=e=>{if(e.target.id==='tov'){$('#modal-slot').innerHTML='';render();}};
+  };
+  draw();
 }
 
 function askToken(){
