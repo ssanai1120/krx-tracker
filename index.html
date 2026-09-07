@@ -120,6 +120,14 @@ th.sig{z-index:4;}
 .rhead button{padding:2px 8px;font-size:11px;}
 .donefold{font-size:11px;color:var(--muted);cursor:pointer;margin:6px 0;user-select:none;}
 .rarrow{font-size:13px;color:var(--accent);width:18px;text-align:center;flex:none;}
+td.ecell{cursor:pointer;}
+td.ecell:hover{box-shadow:inset 0 0 0 1px var(--muted), inset 0 -2px 0 var(--muted);}
+td.ecell input{font:inherit;width:90px;text-align:right;border:1px solid var(--accent);
+  border-radius:5px;padding:2px 5px;background:var(--bg);color:var(--ink);}
+.tinfo{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;margin:6px 0 2px;}
+.tinfo label{color:var(--muted);display:flex;gap:5px;align-items:center;white-space:nowrap;}
+.tinfo input{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:5px;
+  padding:5px 7px;background:var(--bg);color:var(--ink);}
 th.name,td.name{position:sticky;left:66px;background:var(--surface);z-index:2;text-align:left;
   font-weight:600;border-right:1px solid var(--line);width:150px;max-width:150px;}
 .namecell{display:flex;align-items:center;gap:4px;width:100%;}
@@ -218,6 +226,9 @@ function pctCell(v,k){
 }
 
 function render(){
+  // 다시 그리기 전에 표 스크롤 위치 기억 → 그린 후 복원
+  const prevWrap=$('#wrap');
+  const sx=prevWrap?prevWrap.scrollLeft:0, sy=prevWrap?prevWrap.scrollTop:0;
   let rows=HOLD.map((h,idx)=>{
     const cur=priceAt(h.code,0);
     const cost=h.buy*h.qty, val=cur!=null?cur*h.qty:null;
@@ -264,9 +275,10 @@ function render(){
       buy=`<td><input data-f="buy" data-i="${r.idx}" value="${h.buy}"></td>`;
       qty=`<td><input data-f="qty" data-i="${r.idx}" value="${h.qty}"></td>`;
     }else{
-      sig=`<td class="sig">${sigDot(h.sig)}</td>`;
+      sig=`<td class="sig"><span class="dot pick s-${h.sig||'n'}" data-sigi="${r.idx}" title="클릭하여 신호 변경"></span></td>`;
       name=`<td class="name"><span class="namecell"><span class="nm" title="${esc(h.name)}">${esc(h.name)}</span><button class="pencil${hasActivity(h)?' act':''}" data-trade="${r.idx}" title="${hasActivity(h)?'기록 있음 — ':''}매매 기록·시뮬레이션·메모">✎</button></span></td>`;
-      buy=`<td>${fmt(h.buy)}</td>`; qty=`<td>${fmt(h.qty)}</td>`;
+      buy=`<td class="ecell" data-ef="buy" data-ei="${r.idx}" title="더블클릭으로 수정">${fmt(h.buy)}</td>`;
+      qty=`<td class="ecell" data-ef="qty" data-ei="${r.idx}" title="더블클릭으로 수정">${fmt(h.qty)}</td>`;
     }
     const plCls=r.pl>0?'up':(r.pl<0?'down':'');
     body+=`<tr${SEL.has(h.code)?' class="selrow"':''}>${chk}${sig}${name}${buy}${qty}
@@ -334,6 +346,8 @@ function render(){
   정렬은 드롭다운 또는 열 제목 클릭 · 시세는 자동 기록, [지금 조회 실행]으로 수동 갱신</p>
   <div id="modal-slot"></div>`;
   bind();
+  const w=$('#wrap');
+  if(w){w.scrollLeft=sx;w.scrollTop=sy;}
 }
 
 function markDirty(){dirty=true;const b=$('#btn-save');if(b)b.disabled=false;}
@@ -366,6 +380,30 @@ function bind(){
   document.querySelectorAll('.pencil[data-trade]').forEach(b=>{
     b.onclick=e=>{e.stopPropagation();openTrade(+b.dataset.trade);};
   });
+  // 신호등: 언제든 점 클릭으로 색 변경
+  bindSigDots();
+  // 매입단가·수량: 더블클릭 인라인 편집
+  document.querySelectorAll('td.ecell').forEach(td=>{
+    td.ondblclick=()=>{
+      if(td.querySelector('input'))return;
+      const i=+td.dataset.ei, f=td.dataset.ef, h=HOLD[i];
+      td.innerHTML=`<input value="${h[f]}" inputmode="decimal">`;
+      const inp=td.querySelector('input');
+      inp.focus();inp.select();
+      let done=false;
+      const commit=()=>{
+        if(done)return;done=true;
+        const v=parseFloat(String(inp.value).replace(/,/g,''));
+        if(isFinite(v)&&v>0&&v!==h[f]){h[f]=v;markDirty();}
+        render();
+      };
+      inp.onkeydown=e=>{
+        if(e.key==='Enter')commit();
+        else if(e.key==='Escape'){done=true;render();}
+      };
+      inp.onblur=commit;
+    };
+  });
   document.querySelectorAll('th[data-sort]').forEach(th=>{
     th.onclick=e=>{
       if(e.target.type==='checkbox')return;
@@ -395,8 +433,8 @@ function bind(){
         if(isFinite(v)&&v>0){HOLD[i][inp.dataset.f]=v;markDirty();render();}
       };
     });
-    // 신호등 변경: 점 클릭 → 색상 선택 팝업
-    document.querySelectorAll('.dot[data-sigi]').forEach(d=>{
+    // (신호등 바인딩은 bindSigDots()에서 공통 처리)
+    document.querySelectorAll('.dot[data-sigi-unused]').forEach(d=>{
       d.onclick=e=>{
         document.querySelectorAll('.sigpop').forEach(p=>p.remove());
         const i=+d.dataset.sigi;
@@ -485,7 +523,64 @@ async function saveHoldings(){
 
 const todayKST=()=>new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
 
+function bindSigDots(){
+  document.querySelectorAll('.dot[data-sigi]').forEach(d=>{
+    d.onclick=e=>{
+      document.querySelectorAll('.sigpop').forEach(p=>p.remove());
+      const i=+d.dataset.sigi;
+      const pop=document.createElement('div');
+      pop.className='sigpop';
+      pop.innerHTML=SIG_KEYS.map(v=>`<span class="dot pick s-${v}" data-pickv="${v}" title="${esc(lbl(v))}"></span>`).join('');
+      document.body.appendChild(pop);
+      const rc=d.getBoundingClientRect();
+      pop.style.left=Math.min(rc.left,window.innerWidth-pop.offsetWidth-10)+'px';
+      pop.style.top=(rc.bottom+6)+'px';
+      pop.querySelectorAll('[data-pickv]').forEach(p=>{
+        p.onclick=()=>{
+          const v=p.dataset.pickv;
+          if(v==='n')delete HOLD[i].sig; else HOLD[i].sig=v;
+          pop.remove();markDirty();render();
+        };
+      });
+      setTimeout(()=>document.addEventListener('click',function close(ev){
+        if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',close);}
+      }),0);
+      e.stopPropagation();
+    };
+  });
+}
+
 // ---------- 라운드(회전 매매) · 시뮬레이션 · 메모 팝업 ----------
+// ---------- 수수료 · 증권거래세 ----------
+// 증권사 수수료 (체결 1건 금액 기준, 매수·매도 동일 적용)
+const FEE_TIERS=[
+  [500000,      0,    0.004991639],
+  [3000000,     1500, 0.001491639],
+  [30000000,    2000, 0.001391639],
+  [50000000,    0,    0.001291639],
+  [100000000,   0,    0.001191639],
+  [200000000,   0,    0.000991639],
+  [Infinity,    0,    0.000891639],
+];
+const MOBILE_FEE_RATE=0.001891639; // 모바일 수수료 — 참고용 (계산에는 미적용)
+const TAX_RATE=0.002; // 증권거래세+농특세 0.2% (2026년 기준, 매도 시에만 · ETF 면제)
+function brokerFee(amt){
+  for(const [cap,base,rate] of FEE_TIERS)
+    if(amt<=cap)return base+amt*rate;
+  return 0;
+}
+const ETF_RE=/^(TIGER|KODEX|SOL|ACE|PLUS|KBSTAR|RISE|HANARO|ARIRANG|KOSEF|KIWOOM|WON|TIMEFOLIO|UNICORN|1Q)/i;
+function isETF(h){return h.etf!==undefined?!!h.etf:ETF_RE.test(h.name);}
+function roundCost(rd,h){
+  let fee=0,tax=0;
+  for(const l of rd.legs){
+    const amt=l.price*l.qty;
+    fee+=brokerFee(amt);
+    if(l.side==='s'&&!isETF(h))tax+=amt*TAX_RATE;
+  }
+  return {fee:Math.round(fee),tax:Math.round(tax),total:Math.round(fee+tax)};
+}
+
 function roundAgg(rd){
   let sq=0,sa=0,bq=0,ba=0,first=null,last=null;
   for(const l of rd.legs){
@@ -508,13 +603,16 @@ function openTrade(i){
   let showDone=false;
 
   const expanded=new Set();
+  let showFees=false;
   const draw=()=>{
+    const prevScroll=document.querySelector('.mscroll');
+    const msTop=prevScroll?prevScroll.scrollTop:0;
     const cur=priceAt(h.code,0);
     const cost=h.buy*h.qty, val=cur!=null?cur*h.qty:null;
     const pl=val!=null?val-cost:null;
     const closed=h.rounds.filter(r=>r.closed);
     const opens=h.rounds.filter(r=>!r.closed);
-    const totalProfit=closed.reduce((s,r)=>s+roundAgg(r).profit,0);
+    const totalProfit=closed.reduce((s,r)=>s+roundAgg(r).profit-roundCost(r,h).total,0);
 
     const legRow=(rd,li)=>{
       const l=rd.legs[li];
@@ -545,8 +643,10 @@ function openTrade(i){
           <span class="hint">${a.first||''}</span>
           <span class="rsum">${a.sq?`매도 ${fmt(a.sq)}주@${fmt(a.avgS)}`:''}${a.sq&&a.bq?' · ':''}${a.bq?`매수 ${fmt(a.bq)}주@${fmt(a.avgB)}`:''}${a.remain?` · <b>잔여 ${fmt(a.remain)}주 ${waitBuy?'재매수 대기':'매도 대기'}</b>`:a.dir?' · 수량 일치':''}</span>
           <span class="sp"></span>
-          ${a.matched?`<span style="color:var(--${a.profit>=0?'up':'down'});font-weight:700">${a.profit>=0?'+':''}${fmt(a.profit)}</span>`:''}
-          <button data-rclose="${ri}" title="라운드를 마감하고 회전 차익을 확정">종료</button>
+          ${(()=>{const c=roundCost(rd,h),net=a.profit-c.total;
+            return a.matched?`<span style="color:var(--${net>=0?'up':'down'});font-weight:700">순 ${net>=0?'+':''}${fmt(net)}</span><span class="hint">(비용 ${fmt(c.total)})</span>`
+              :(c.total?`<span class="hint">비용 ${fmt(c.total)}</span>`:'');})()}
+          <button data-rclose="${ri}" title="라운드를 마감하고 순차익을 확정">종료</button>
         </div>
         ${rd.legs.map((_,li)=>legRow(rd,li)).join('')}
         <div class="tform">
@@ -569,7 +669,8 @@ function openTrade(i){
         <span class="rarrow">${isOpen?'▼':'▶'}</span><span class="hint">${a.first||''} ~ ${a.last||''}</span>
         <span class="${a.dir==='s'?'chips':'chipb'}">${a.dir==='s'?'매도 선행':'매수 선행'}</span>
         <span>${fmt(a.matched)}주 회전</span>
-        <span style="color:var(--${a.profit>=0?'up':'down'});font-weight:700">${a.profit>=0?'+':''}${fmt(a.profit)}</span>
+        ${(()=>{const c=roundCost(rd,h),net=a.profit-c.total;
+          return `<span style="color:var(--${net>=0?'up':'down'});font-weight:700">순 ${net>=0?'+':''}${fmt(net)}</span><span class="hint">(비용 ${fmt(c.total)})</span>`;})()}
         <span class="sp"></span>
         <button data-rdel="${ri}" title="종료된 라운드를 목록에서 제거 (평단에는 영향 없음)">삭제</button>
       </div>${isOpen?`<div style="padding-left:18px">${rd.legs.map((_,li)=>legRow(rd,li)).join('')}</div>`:''}`;
@@ -586,6 +687,19 @@ function openTrade(i){
           <div><div class="lbl">회전 차익 누계</div><div class="val" style="color:var(--${totalProfit>=0?'up':'down'})">${totalProfit>=0?'+':''}${fmt(totalProfit)}</div></div>
         </div>
 
+        <div class="tsec">종목 정보 <span class="hint" style="font-weight:400">— 수정하면 메인 표에 즉시 반영됩니다</span></div>
+        <div class="tinfo">
+          <label>종목명 <input id="ti-name" value="${esc(h.name)}" style="width:140px"></label>
+          <label>평단 <input id="ti-buy" value="${h.buy}" style="width:90px;text-align:right" inputmode="decimal"></label>
+          <label>수량 <input id="ti-qty" value="${h.qty}" style="width:70px;text-align:right" inputmode="decimal"></label>
+          <label>신호
+            <span style="display:inline-flex;gap:6px;align-items:center">
+              ${SIG_KEYS.map(v=>`<span class="dot pick s-${v}${(h.sig||'n')===v?' sel':''}" data-tsig="${v}" title="${esc(lbl(v))}"></span>`).join('')}
+            </span>
+          </label>
+          <label title="ETF는 매도 시 증권거래세가 면제됩니다"><input type="checkbox" id="ti-etf" ${isETF(h)?'checked':''}> ETF (거래세 면제)</label>
+        </div>
+
         <div class="tsec">진행 중 라운드
           <span class="hint" style="font-weight:400">— 기록하면 평단·수량에 자동 반영 · 첫 기록이 매도면 "급등 매도→재매수", 매수면 "급락 매수→매도" 회전</span></div>
         ${opens.length?opens.map(openCard).join(''):'<div class="hint" style="padding:4px 0">진행 중인 라운드 없음</div>'}
@@ -599,13 +713,48 @@ function openTrade(i){
 
         <div class="tsec">메모</div>
         <textarea class="memo-ta" id="t-memo" placeholder="이 종목에 대한 생각, 계획, 기준...">${esc(h.memo||'')}</textarea>
-        <p class="hint" style="margin:8px 0 2px">※ 모든 계산에 증권거래세·거래수수료는 반영되어 있지 않습니다.</p>
+        <div class="donefold" id="fee-fold" style="margin-top:10px">적용 중인 수수료·세금 기준 ${showFees?'접기 ▲':'보기 ▼'}</div>
+        ${showFees?`<div style="font-size:11px;color:var(--muted);line-height:1.7;background:var(--chip);border-radius:7px;padding:10px 12px">
+          <b>증권거래세</b> — 매도금액의 ${(TAX_RATE*100).toFixed(1)}% (2026년 기준, 코스피·코스닥 공통 · <b>ETF 면제</b>)<br>
+          <b>증권사 수수료</b> — 매수·매도 각각, 체결 1건 금액 기준:<br>
+          &nbsp;· 50만원 이하: 0.4991639%<br>
+          &nbsp;· 50만~3백만원: 1,500원 + 0.1491639%<br>
+          &nbsp;· 3백만~3천만원: 2,000원 + 0.1391639%<br>
+          &nbsp;· 3천만~5천만원: 0.1291639%<br>
+          &nbsp;· 5천만~1억원: 0.1191639%<br>
+          &nbsp;· 1억~2억원: 0.0991639%<br>
+          &nbsp;· 2억원 초과: 0.0891639%<br>
+          <span style="opacity:.75">참고 — 모바일 수수료 0.1891639%는 계산에 적용하지 않습니다.</span><br>
+          <span style="opacity:.75">※ 원단위 절사 등 증권사 청구 규칙에 따라 실제 금액과 몇 원 차이가 있을 수 있습니다.</span>
+        </div>`:''}
       </div>
       <div class="mfoot" style="padding:12px 18px;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center">
         <span class="hint">${dirty?'변경사항은 메인 화면의 [GitHub에 저장]으로 보존됩니다':''}</span>
         <button id="t-close">닫기</button>
       </div>
     </div></div>`;
+
+    // --- 종목 정보 수정 ---
+    $('#ti-name').onchange=()=>{
+      const v=$('#ti-name').value.trim();
+      if(v&&v!==h.name){h.name=v;markDirty();render();draw();}
+    };
+    $('#ti-buy').onchange=()=>{
+      const v=parseFloat($('#ti-buy').value.replace(/,/g,''));
+      if(isFinite(v)&&v>0&&v!==h.buy){h.buy=v;markDirty();render();draw();}
+    };
+    $('#ti-qty').onchange=()=>{
+      const v=parseFloat($('#ti-qty').value.replace(/,/g,''));
+      if(isFinite(v)&&v>0&&v!==h.qty){h.qty=v;markDirty();render();draw();}
+    };
+    $('#ti-etf').onchange=()=>{h.etf=$('#ti-etf').checked;markDirty();render();draw();};
+    document.querySelectorAll('[data-tsig]').forEach(d=>{
+      d.onclick=()=>{
+        const v=d.dataset.tsig;
+        if(v==='n')delete h.sig; else h.sig=v;
+        markDirty();render();draw();
+      };
+    });
 
     // --- 라운드별 시뮬레이션 ---
     const runSim=ri=>{
@@ -617,14 +766,21 @@ function openTrade(i){
       const p=parseFloat(inp.value)/100;
       rd.simPct=parseFloat(inp.value);
       if(!isFinite(p)||a.remain<=0){out.textContent='—';if(exp)exp.textContent='';return;}
+      const c0=roundCost(rd,h);
       if(a.dir==='s'){ // 재매수 대기: 매도평균 대비 p% 아래에서 매수
         const target=a.avgS*(1-p);
+        const futAmt=target*a.remain;
+        const cost=c0.total+Math.round(brokerFee(futAmt));
+        const net=Math.round(a.remain*(a.avgS-target)+a.profit)-cost;
         out.textContent=fmt(target)+'원';
-        if(exp)exp.textContent=`(잔여 ${fmt(a.remain)}주 기준 예상 차익 +${fmt(a.remain*(a.avgS-target))})`;
+        if(exp)exp.textContent=`(잔여 ${fmt(a.remain)}주 매수 시 예상 순차익 ${net>=0?'+':''}${fmt(net)} · 비용 ${fmt(cost)})`;
       }else{ // 매도 대기: 매수평균 대비 p% 위에서 매도
         const target=a.avgB*(1+p);
+        const futAmt=target*a.remain;
+        const cost=c0.total+Math.round(brokerFee(futAmt)+(isETF(h)?0:futAmt*TAX_RATE));
+        const net=Math.round(a.remain*(target-a.avgB)+a.profit)-cost;
         out.textContent=fmt(target)+'원';
-        if(exp)exp.textContent=`(잔여 ${fmt(a.remain)}주 기준 예상 차익 +${fmt(a.remain*(target-a.avgB))})`;
+        if(exp)exp.textContent=`(잔여 ${fmt(a.remain)}주 매도 시 예상 순차익 ${net>=0?'+':''}${fmt(net)} · 비용 ${fmt(cost)})`;
       }
     };
     document.querySelectorAll('[data-simpct]').forEach(inp=>{
@@ -659,7 +815,7 @@ function openTrade(i){
         if(!d||!isFinite(price)||price<=0||!isFinite(qty)||qty<=0){toast('날짜·가격·수량을 확인하세요');return;}
         if(side==='s'&&qty>h.qty){toast('보유 수량('+fmt(h.qty)+'주)보다 많이 팔 수 없습니다');return;}
         if(side==='b'){
-          h.buy=(h.buy*h.qty+price*qty)/(h.qty+qty);
+          h.buy=Math.round((h.buy*h.qty+price*qty)/(h.qty+qty));
           h.qty=h.qty+qty;
         }else{
           h.qty=h.qty-qty;
@@ -678,7 +834,7 @@ function openTrade(i){
         if(l.side==='b'){
           const prevQty=h.qty-l.qty;
           if(prevQty<=0){toast('이후 매매와 얽혀 되돌릴 수 없습니다. [종목 편집]에서 직접 보정하세요');return;}
-          h.buy=(h.buy*h.qty-l.price*l.qty)/prevQty;
+          h.buy=Math.round((h.buy*h.qty-l.price*l.qty)/prevQty);
           h.qty=prevQty;
         }else{
           h.qty=h.qty+l.qty;
@@ -694,9 +850,10 @@ function openTrade(i){
       b.onclick=()=>{
         const ri=+b.dataset.rclose, a=roundAgg(h.rounds[ri]);
         if(!h.rounds[ri].legs.length){h.rounds.splice(ri,1);draw();return;}
+        const nc=roundCost(h.rounds[ri],h), nnet=a.profit-nc.total;
         const msg=a.remain>0
-          ?`잔여 ${fmt(a.remain)}주가 아직 ${a.dir==='s'?'재매수':'매도'}되지 않았습니다. 그래도 종료할까요?\n(회전 차익은 성사된 ${fmt(a.matched)}주 기준 ${a.profit>=0?'+':''}${fmt(a.profit)}원으로 확정)`
-          :`라운드를 종료하고 회전 차익 ${a.profit>=0?'+':''}${fmt(a.profit)}원을 확정할까요?`;
+          ?`잔여 ${fmt(a.remain)}주가 아직 ${a.dir==='s'?'재매수':'매도'}되지 않았습니다. 그래도 종료할까요?\n(순차익은 성사된 ${fmt(a.matched)}주 기준 ${nnet>=0?'+':''}${fmt(nnet)}원으로 확정 · 비용 ${fmt(nc.total)}원 차감)`
+          :`라운드를 종료하고 순차익 ${nnet>=0?'+':''}${fmt(nnet)}원(비용 ${fmt(nc.total)}원 차감)을 확정할까요?`;
         if(!confirm(msg))return;
         h.rounds[ri].closed=1;
         markDirty();render();draw();
@@ -720,6 +877,8 @@ function openTrade(i){
 
     const fold=$('#t-fold');
     if(fold)fold.onclick=()=>{showDone=!showDone;draw();};
+    const ff=$('#fee-fold');
+    if(ff)ff.onclick=()=>{showFees=!showFees;draw();};
     $('#t-memo').onchange=()=>{
       const v=$('#t-memo').value.trim();
       if(v)h.memo=v; else delete h.memo;
@@ -727,6 +886,8 @@ function openTrade(i){
     };
     $('#t-close').onclick=()=>{$('#modal-slot').innerHTML='';render();};
     $('#tov').onclick=e=>{if(e.target.id==='tov'){$('#modal-slot').innerHTML='';render();}};
+    const ms=document.querySelector('.mscroll');
+    if(ms)ms.scrollTop=msTop;
   };
   draw();
 }
